@@ -25,6 +25,7 @@ sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))
 # model-related
 from tools.objdet_models.resnet.models import fpn_resnet
 from tools.objdet_models.resnet.utils.evaluation_utils import decode, post_processing 
+from tools.objdet_models.resnet.utils.torch_utils import _sigmoid
 
 from tools.objdet_models.darknet.models.darknet2pytorch import Darknet as darknet
 from tools.objdet_models.darknet.utils.evaluation_utils import post_processing_v2
@@ -56,11 +57,33 @@ def load_configs_model(model_name='darknet', configs=None):
         configs.num_workers = 4
         configs.pin_memory = True
         configs.use_giou_loss = False
+        configs.min_iou = 0.5
 
     elif model_name == 'fpn_resnet':
         ####### ID_S3_EX1-3 START #######     
         #######
         print("student task ID_S3_EX1-3")
+        configs.model_path = os.path.join(parent_path, 'tools', 'objdet_models', 'resnet')
+        configs.pretrained_filename = os.path.join(configs.model_path, 'pretrained', 'fpn_resnet_18_epoch_300.pth')
+        configs.pretrained_path = os.path.join(configs.model_path, 'pretrained')
+        configs.saved_fn = 'fpn_resnet'
+        configs.arch = 'fpn_resnet'
+        configs.k = 50
+        configs.batch_size = 4
+        configs.conf_thresh = 0.5
+        configs.distributed = False
+        configs.img_size = 608
+        configs.nms_thresh = 0.4
+        configs.num_samples = None
+        configs.num_workers = 4
+        configs.pin_memory = True
+        configs.use_giou_loss = False
+        configs.heads = {'hm_cen': 3, 'cen_offset': 2, 'direction': 2, 'z_coor': 1, 'dim': 3}
+        configs.head_conv = 64
+        configs.imagenet_pretrained = False
+        configs.num_classes = 3
+        configs.down_ratio = 4
+
 
         #######
         ####### ID_S3_EX1-3 END #######     
@@ -118,6 +141,10 @@ def create_model(configs):
         ####### ID_S3_EX1-4 START #######     
         #######
         print("student task ID_S3_EX1-4")
+        model = fpn_resnet.get_pose_net(num_layers = 18, 
+                                        heads = configs.heads,
+                                        head_conv = configs.head_conv,
+                                        imagenet_pretrained = configs.imagenet_pretrained)
 
         #######
         ####### ID_S3_EX1-4 END #######     
@@ -167,6 +194,11 @@ def detect_objects(input_bev_maps, model, configs):
             ####### ID_S3_EX1-5 START #######     
             #######
             print("student task ID_S3_EX1-5")
+            detections = decode(_sigmoid(outputs['hm_cen']), _sigmoid(outputs['cen_offset']), outputs['direction'], outputs['z_coor'], outputs['dim'], configs.k)
+            detections = detections.cpu().numpy().astype(np.float32)
+
+            detections = post_processing(detections, configs)
+            detections = detections[0][1]
 
             #######
             ####### ID_S3_EX1-5 END #######     
@@ -180,12 +212,22 @@ def detect_objects(input_bev_maps, model, configs):
     objects = [] 
 
     ## step 1 : check whether there are any detections
+    for obj in detections:
+        id, bev_x, bev_y, z, h, bev_w, bev_l, yaw = obj
 
         ## step 2 : loop over all detections
+        x = bev_y / configs.bev_height * (configs.lim_x[1] - configs.lim_x[0])
+        y = bev_x / configs.bev_width * (configs.lim_y[1] - configs.lim_y[0]) - (configs.lim_y[1] - configs.lim_y[0]) / 2.0
+        w = bev_w / configs.bev_width * (configs.lim_y[1] - configs.lim_y[0])
+        l = bev_l / configs.bev_height * (configs.lim_x[1] - configs.lim_x[0])
         
             ## step 3 : perform the conversion using the limits for x, y and z set in the configs structure
+        if ((x >= configs.lim_x[0]) and (x <= configs.lim_x[1])
+            and (y >= configs.lim_y[0]) and (y <= configs.lim_y[1])
+            and (z >= configs.lim_z[0]) and (z <= configs.lim_z[1])):
         
             ## step 4 : append the current object to the 'objects' array
+            objects.append([1, x, y, z, h, w, l, yaw])
         
     #######
     ####### ID_S3_EX2 START #######   
