@@ -83,11 +83,13 @@ class Sensor:
             x,y,z = pos_sens[0:3]
 
             if x <= 0:
-                z_pred = np.array([-100, -100])
+                u = -100
+                v = -100
             else:
                 u = self.c_i - self.f_i * y/x
                 v = self.c_j - self.f_j * z/x
-                z_pred = np.array([u, v])
+            
+            z_pred = np.array([u, v])
             
             z_pred = np.matrix(z_pred.reshape(-1, 1))
             return z_pred
