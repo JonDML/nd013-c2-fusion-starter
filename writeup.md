@@ -18,6 +18,22 @@ The result will be the following image:
 
 ![step1](img/step1.png)
 
+Different kind of vehicles:
+- ![truck](img/truck.PNG)
+In the previous image, a car can be found, seeing the side part near to the sensor, and in the front of sensor, a truck can be found, or, at least, rear part of truck can be seen.
+
+- ![side_car](img/side_car.PNG)
+Here, the lateral part of the car can be seen.
+
+- ![top_corner](img/top_corner.PNG)
+From top side, sensor can be seen at a corner, and streets can be observed perfectly.
+
+- ![near_cars](img/near_cars.PNG)
+Can be seen two near cars in front of sensor
+
+- ![near_far_cars](img/near_far_cars.PNG)
+Near cars can be observed more or less complete, and far cars rear bumper is detected by sensor.
+
 #### Section 2 : Create Birds-Eye View from Lidar PCL
 
 Using Lidar Point-Cloud, have to compute the respective coordinates within the BEV coordinate space, and fill the BEV map with lidar data from the point-cloud.
