@@ -25,10 +25,15 @@ import misc.params as params
 
 class Association:
     '''Data association class with single nearest neighbor association and gating based on Mahalanobis distance'''
-    def __init__(self):
-        self.association_matrix = np.matrix([])
-        self.unassigned_tracks = []
+
+    def reset_lists(self):
+        # the following only works for at most one track and one measurement
+        self.association_matrix = np.matrix([]) # reset matrix
+        self.unassigned_tracks = [] # reset lists
         self.unassigned_meas = []
+
+    def __init__(self):
+        self.reset_lists()
         
     def associate(self, track_list, meas_list, KF):
              
@@ -37,11 +42,32 @@ class Association:
         # - replace association_matrix with the actual association matrix based on Mahalanobis distance (see below) for all tracks and all measurements
         # - update list of unassigned measurements and unassigned tracks
         ############
+        self.reset_lists()
+
+        number_of_tracks = len(track_list)
+        number_of_measurements = len(meas_list) # M measurements
+
+        if number_of_tracks > 0: 
+            self.unassigned_tracks = list(range(number_of_tracks))
+            
+        if number_of_measurements > 0: 
+            self.unassigned_meas = list(range(number_of_measurements))
+
+        if number_of_measurements > 0 and number_of_tracks > 0:
+            self.association_matrix = np.inf*np.ones((number_of_tracks, number_of_measurements))
+
+            for i in range(number_of_tracks):
+                track = track_list[i]
+                for j in range(number_of_measurements):
+                    meas = meas_list[j]
+                    mhd = self.MHD(track, meas, KF)
+                    if self.gating(mhd, sensor = meas.sensor):
+                        self.association_matrix[i, j] = self.MHD(track, meas, KF)
         
-        # the following only works for at most one track and one measurement
-        self.association_matrix = np.matrix([]) # reset matrix
-        self.unassigned_tracks = [] # reset lists
-        self.unassigned_meas = []
+        return
+
+
+        self.reset_lists()
         
         if len(meas_list) > 0:
             self.unassigned_meas = [0]
@@ -63,6 +89,25 @@ class Association:
         # - return this track and measurement
         ############
 
+        AM = self.association_matrix
+        if np.min(AM) == np.inf:
+            return np.nan, np.nan
+
+        min_ij = np.unravel_index(np.argmin(AM, axis=None), AM.shape)
+        track_idx, meas_idx = min_ij
+
+        AM = np.delete(AM, track_idx, 0)
+        AM = np.delete(AM, meas_idx, 1)
+        self.association_matrix = AM
+
+        update_track = self.unassigned_tracks[track_idx]
+        update_meas = self.unassigned_meas[meas_idx]
+
+        self.unassigned_tracks.remove(update_track)
+        self.unassigned_meas.remove(update_meas)
+
+        return update_track, update_meas
+
         # the following only works for at most one track and one measurement
         update_track = 0
         update_meas = 0
@@ -82,7 +127,8 @@ class Association:
         # TODO Step 3: return True if measurement lies inside gate, otherwise False
         ############
         
-        pass    
+        limit = chi2.ppf(params.gating_threshold, df = 2)
+        return MHD < limit    
         
         ############
         # END student code
@@ -92,14 +138,17 @@ class Association:
         ############
         # TODO Step 3: calculate and return Mahalanobis distance
         ############
-        
-        pass
+        H = meas.sensor.get_H(track.x)
+        gamma = meas.z - meas.sensor.get_hx(track.x)
+        S = H*track.P*H.transpose() + meas.R
+        MHD = gamma.transpose()*np.linalg.inv(S)*gamma
+        return MHD
         
         ############
         # END student code
         ############ 
     
-    def associate_and_update(self, manager, meas_list, KF):
+    def associate_and_update(self, manager, meas_list, KF, cnt_frame):
         # associate measurements and tracks
         self.associate(manager.track_list, meas_list, KF)
     
@@ -122,13 +171,14 @@ class Association:
             KF.update(track, meas_list[ind_meas])
             
             # update score and track state 
-            manager.handle_updated_track(track)
+            print(track)
+            manager.handle_updated_track(track, cnt_frame)
             
             # save updated track
             manager.track_list[ind_track] = track
             
         # run track management 
-        manager.manage_tracks(self.unassigned_tracks, self.unassigned_meas, meas_list)
+        manager.manage_tracks(self.unassigned_tracks, self.unassigned_meas, meas_list, cnt_frame)
         
         for track in manager.track_list:            
             print('track', track.id, 'score =', track.score)

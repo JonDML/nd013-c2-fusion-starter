@@ -41,30 +41,33 @@ class Sensor:
             
         self.veh_to_sens = np.linalg.inv(self.sens_to_veh) # transformation vehicle to sensor coordinates
     
+    def get_pos_veh_sens(self, x):
+        pos_veh = np.ones((4, 1)) # homogeneous coordinates
+        pos_veh[0:3] = x[0:3] 
+        pos_sens = self.veh_to_sens*pos_veh # transform from vehicle to lidar coordinates
+
+        return pos_veh, pos_sens
+    
     def in_fov(self, x):
         # check if an object x can be seen by this sensor
         ############
         # TODO Step 4: implement a function that returns True if x lies in the sensor's field of view, 
         # otherwise False.
         ############
-        vehicle_pos = np.ones((4, 1))
-        vehicle_pos[0:3] = x[0:3]
-        sensor_pos = self.veh_to_sens*vehicle_pos
-        x,y,z = np.squeeze(sensor_pos.A)[:3]
 
-        angle = math.atan2(y, x)
-        return angle >= self.fov[0] and angle <= self.fov[1]
+        pos_veh, pos_sens = self.get_pos_veh_sens(x)
+        alpha = np.arctan(pos_sens[1, 0]/pos_sens[0, 0])
+
+        return alpha > self.fov[0] and alpha < self.fov[1]
         
         ############
         # END student code
         ############ 
              
     def get_hx(self, x):    
-        # calculate nonlinear measurement expectation value h(x)   
+        # calculate nonlinear measurement expectation value h(x)
+        pos_veh, pos_sens = self.get_pos_veh_sens(x)   
         if self.name == 'lidar':
-            pos_veh = np.ones((4, 1)) # homogeneous coordinates
-            pos_veh[0:3] = x[0:3] 
-            pos_sens = self.veh_to_sens*pos_veh # transform from vehicle to lidar coordinates
             return pos_sens[0:3]
         elif self.name == 'camera':
             
@@ -75,24 +78,14 @@ class Sensor:
             # - make sure to not divide by zero, raise an error if needed
             # - return h(x)
             ############
-
-            pos_veh = np.ones((4, 1))
-            pos_veh[0:3] = x[0:3]
-
-            pos_sens = self.veh_to_sens*pos_veh
-            x,y,z = pos_sens[0:3]
-
-            if x <= 0:
-                u = -100
-                v = -100
+            hx = np.zeros((2, 1))
+            if pos_sens[0] == 0:
+                raise NameError('Jacobian not defined for this x[0]!')
             else:
-                u = self.c_i - self.f_i * y/x
-                v = self.c_j - self.f_j * z/x
-            
-            z_pred = np.array([u, v])
-            
-            z_pred = np.matrix(z_pred.reshape(-1, 1))
-            return z_pred
+                hx[0, 0] = self.c_i - self.f_i * pos_sens[1] / pos_sens[0]
+                hx[1, 0] = self.c_j - self.f_j * pos_sens[2] / pos_sens[0]
+
+                return hx
         
             ############
             # END student code
@@ -135,7 +128,7 @@ class Sensor:
         ############
         # TODO Step 4: remove restriction to lidar in order to include camera as well
         ############
-        
+
         meas = Measurement(num_frame, z, self)
         meas_list.append(meas)
         return meas_list
@@ -174,13 +167,17 @@ class Measurement:
             ############
             # TODO Step 4: initialize camera measurement including z, R, and sensor 
             ############
-
+            sigma_cam_i = params.sigma_cam_i
+            sigma_cam_j = params.sigma_cam_j
             self.z = np.zeros((sensor.dim_meas,1)) # measurement vector
-            self.z[0][0] = z[0]
-            self.z[1][0] = z[1]
+            self.z[0] = z[0]
+            self.z[1] = z[1]
             self.sensor = sensor # sensor that generated this measurement
-            self.R = np.matrix([[params.sigma_cam_i**2, 0], # measurement noise covariance matrix
-                                [0, params.sigma_cam_j**2]])
+            self.R = np.matrix([[sigma_cam_i**2, 0], # measurement noise covariance matrix
+                                [0, sigma_cam_j**2]])
+            
+            self.width = z[2]
+            self.length = z[3]
         
             ############
             # END student code
