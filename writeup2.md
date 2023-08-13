@@ -46,5 +46,7 @@ Adding different cameras in different angles can help improving vehicle detectio
 | ![Figure1](Own_results/Final/Step3/Figure_1.png) | ![Figure2](Own_results/Final/Step3/Figure_2.png) | 
 |:-:|:-:|
 #### 4. Step 4
+| ![Figure1](Own_results/Final/Step4/Figure_1.png) | ![Figure2](Own_results/Final/Step4/Figure_2.png) | 
+|:-:|:-:|
 
 To see movie generated in step 4, go to **Own_results/Final/Step4** folder and check **my_tracking_results.avi** video file.
